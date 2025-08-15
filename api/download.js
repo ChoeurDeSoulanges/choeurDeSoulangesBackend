@@ -5,7 +5,7 @@ import archiver from "archiver";
 const BASE_FOLDER = path.join(process.cwd(), "data");
 
 export default async function handler(req, res) {
-  // CORS headers
+  // CORS headers for every request
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
       const archive = archiver("zip", { zlib: { level: 9 } });
       archive.on("error", (err) => {
         console.error("Archive error:", err);
-        if (!res.headersSent) res.status(500).send({ error: err.message });
+        if (!res.headersSent) res.status(500).end();
       });
 
       archive.pipe(res);
@@ -50,12 +50,13 @@ export default async function handler(req, res) {
         return res.status(404).send("File not found");
       }
 
-      // Important: set headers before streaming
+      // Set headers before streaming
       res.setHeader(
         "Content-Disposition",
         `attachment; filename="${path.basename(filePath)}"`
       );
       res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Length", fs.statSync(filePath).size);
 
       const stream = fs.createReadStream(filePath);
       stream.on("error", (err) => {
