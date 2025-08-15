@@ -32,17 +32,7 @@ try {
   console.error("Failed to load files.json:", err);
 }
 
-app.get("/download", (req, res) => {
-  // Set CORS headers first
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  // Handle preflight OPTIONS request
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
+app.get("/download", cors(corsOptions), (req, res) => {
   const { file, folder } = req.query;
 
   if (folder) {
@@ -70,19 +60,19 @@ app.get("/download", (req, res) => {
       return res.status(404).send("File not found");
     }
 
-    // Manually set headers for the download
+    // Important: manually set headers for download
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${path.basename(filePath)}"`
     );
     res.setHeader("Content-Type", "application/octet-stream");
 
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
-    stream.on("error", (err) => {
-      console.error("Download stream error:", err);
-      if (!res.headersSent) res.status(500).end();
-    });
+    fs.createReadStream(filePath)
+      .on("error", (err) => {
+        console.error("Download stream error:", err);
+        if (!res.headersSent) res.status(500).end();
+      })
+      .pipe(res);
   } else {
     res.status(400).send("Missing file or folder parameter");
   }
