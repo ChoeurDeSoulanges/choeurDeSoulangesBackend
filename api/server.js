@@ -33,7 +33,7 @@ try {
 }
 
 // Download endpoint (file or folder)
-app.get("/download", (req, res) => {
+app.get("/download", cors(corsOptions), (req, res) => {
   const { file, folder } = req.query;
 
   if (folder) {
