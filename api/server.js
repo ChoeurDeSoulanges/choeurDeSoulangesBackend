@@ -19,19 +19,17 @@ app.use(express.json());
 const BASE_FOLDER = path.join(__dirname, "..", "data");
 const JSON_FILE_PATH = path.join(BASE_FOLDER, "files.json");
 
-// Utility function to read files.json
-function readFilesJson() {
-  try {
-    const content = fs.readFileSync(JSON_FILE_PATH, "utf8");
-    return JSON.parse(content);
-  } catch (err) {
-    console.error("Error reading files.json:", err);
-    return null;
-  }
+// Load JSON once at startup
+let filesData = null;
+try {
+  const content = fs.readFileSync(JSON_FILE_PATH, "utf8");
+  filesData = JSON.parse(content);
+} catch (err) {
+  console.error("Failed to load files.json:", err);
 }
 
 // Download endpoint (file or folder)
-app.get("/download", async (req, res) => {
+app.get("/download", (req, res) => {
   const { file, folder } = req.query;
 
   if (folder) {
@@ -88,46 +86,44 @@ app.get("/audio", (req, res) => {
     if (!res.headersSent) res.status(500).end();
   };
 
+  const streamFile = (start, end, statusCode) => {
+    const stream = fs.createReadStream(
+      filePath,
+      start !== undefined ? { start, end } : undefined
+    );
+    stream.on("error", handleStreamError);
+
+    const headers = {
+      "Content-Type": "audio/mpeg",
+      "Content-Length": end !== undefined ? end - start + 1 : stat.size,
+    };
+
+    if (statusCode === 206) {
+      headers["Content-Range"] = `bytes ${start}-${end}/${stat.size}`;
+      headers["Accept-Ranges"] = "bytes";
+    }
+
+    res.writeHead(statusCode, headers);
+    stream.pipe(res);
+
+    req.on("close", () => stream.destroy());
+  };
+
   if (range) {
     const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
     const start = parseInt(startStr, 10);
     const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
-    const chunkSize = end - start + 1;
-
-    const stream = fs.createReadStream(filePath, { start, end });
-    stream.on("error", handleStreamError);
-
-    res.writeHead(206, {
-      "Content-Range": `bytes ${start}-${end}/${stat.size}`,
-      "Accept-Ranges": "bytes",
-      "Content-Length": chunkSize,
-      "Content-Type": "audio/mpeg",
-    });
-
-    stream.pipe(res);
-
-    req.on("close", () => stream.destroy());
+    streamFile(start, end, 206);
   } else {
-    const stream = fs.createReadStream(filePath);
-    stream.on("error", handleStreamError);
-
-    res.writeHead(200, {
-      "Content-Length": stat.size,
-      "Content-Type": "audio/mpeg",
-    });
-
-    stream.pipe(res);
-
-    req.on("close", () => stream.destroy());
+    streamFile(undefined, undefined, 200);
   }
 });
 
 // Serve the JSON folder structure
 app.get("/api/list", (req, res) => {
-  const data = readFilesJson();
-  if (!data)
+  if (!filesData)
     return res.status(500).json({ error: "Failed to load files.json" });
-  res.json(data); // send JSON once
+  res.json(filesData);
 });
 
 const PORT = process.env.PORT || 3001;
