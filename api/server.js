@@ -7,9 +7,11 @@ import { fileURLToPath } from "url";
 
 import cors from "cors";
 
-const corsOptions = {
-  origin: "*", // or specify your frontend domain for security
-};
+app.use(
+  cors({
+    origin: "*", // allow all origins; or specify your frontend URL for security
+  })
+);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,6 +123,7 @@ app.get("/api/list", (req, res) => {
   }
   // Ensure CORS headers are sent if needed
   res.setHeader("Access-Control-Allow-Origin", "*");
+  res.json(data);
   res.json(data);
 });
 
