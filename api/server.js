@@ -32,6 +32,8 @@ try {
   console.error("Failed to load files.json:", err);
 }
 
+app.options("/download", cors(corsOptions)); // handle preflight
+
 app.get("/download", cors(corsOptions), (req, res) => {
   const { file, folder } = req.query;
 
@@ -60,7 +62,6 @@ app.get("/download", cors(corsOptions), (req, res) => {
       return res.status(404).send("File not found");
     }
 
-    // Important: manually set headers for download
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${path.basename(filePath)}"`
