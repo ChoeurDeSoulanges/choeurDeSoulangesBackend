@@ -16,6 +16,10 @@ const app = express();
 app.use(cors()); // global CORS
 app.use(express.json());
 
+const corsOptions = {
+  origin: "*", // allow all origins, or specify your frontend URL
+};
+
 const BASE_FOLDER = path.join(__dirname, "..", "data");
 const JSON_FILE_PATH = path.join(BASE_FOLDER, "files.json");
 
@@ -120,10 +124,15 @@ app.get("/audio", (req, res) => {
 });
 
 // Serve the JSON folder structure
-app.get("/api/list", (req, res) => {
-  if (!filesData)
-    return res.status(500).json({ error: "Failed to load files.json" });
-  res.json(filesData);
+app.get("/api/list", cors(corsOptions), (req, res) => {
+  try {
+    const data = fs.readFileSync(JSON_FILE_PATH, "utf8");
+    const parsed = JSON.parse(data);
+    res.json(parsed);
+  } catch (err) {
+    console.error("Failed to load files.json:", err);
+    res.status(500).json({ error: "Failed to load files.json" });
+  }
 });
 
 const PORT = process.env.PORT || 3001;
