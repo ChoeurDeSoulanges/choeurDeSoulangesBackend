@@ -5,19 +5,15 @@ import path from "path";
 import archiver from "archiver";
 import { fileURLToPath } from "url";
 
-import cors from "cors";
-
-app.use(
-  cors({
-    origin: "*", // allow all origins; or specify your frontend URL for security
-  })
-);
-
+// Setup __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Initialize Express app
 const app = express();
-app.use(cors());
+
+// Apply middleware
+app.use(cors()); // global CORS
 app.use(express.json());
 
 const BASE_FOLDER = path.join(__dirname, "..", "data");
@@ -34,7 +30,8 @@ function readFilesJson() {
   }
 }
 
-app.get("/download", cors(corsOptions), async (req, res) => {
+// Download endpoint (file or folder)
+app.get("/download", async (req, res) => {
   const { file, folder } = req.query;
 
   if (folder) {
@@ -49,20 +46,21 @@ app.get("/download", cors(corsOptions), async (req, res) => {
 
     const archive = archiver("zip", { zlib: { level: 9 } });
     archive.on("error", (err) => {
-      console.error(err);
-      res.status(500).send({ error: err.message });
+      console.error("Archive error:", err);
+      if (!res.headersSent) res.status(500).send({ error: err.message });
     });
 
     archive.pipe(res);
     archive.directory(folderPath, false);
     archive.finalize();
   } else if (file) {
-    const filePath = path.join(BASE_FOLDER, file);
+    const filePath = path.join(BASE_FOLDER, decodeURIComponent(file));
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
       return res.status(404).send("File not found");
     }
-    res.download(filePath, path.basename(file), (err) => {
-      if (err) {
+
+    res.download(filePath, path.basename(filePath), (err) => {
+      if (err && !res.headersSent) {
         console.error("Download error:", err);
         res.status(500).send("Error downloading file");
       }
@@ -73,13 +71,11 @@ app.get("/download", cors(corsOptions), async (req, res) => {
 });
 
 // Audio streaming endpoint
-app.get("/audio", cors(corsOptions), (req, res) => {
+app.get("/audio", (req, res) => {
   const { file } = req.query;
   if (!file) return res.status(400).send("Missing file parameter");
 
-  const decodedFile = decodeURIComponent(file.toString());
-  const filePath = path.join(BASE_FOLDER, decodedFile);
-
+  const filePath = path.join(BASE_FOLDER, decodeURIComponent(file));
   if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
     return res.status(404).send("File not found");
   }
@@ -87,44 +83,51 @@ app.get("/audio", cors(corsOptions), (req, res) => {
   const stat = fs.statSync(filePath);
   const range = req.headers.range;
 
+  const handleStreamError = (err) => {
+    console.error("Stream error:", err);
+    if (!res.headersSent) res.status(500).end();
+  };
+
   if (range) {
-    const parts = range.replace(/bytes=/, "").split("-");
-    const start = parseInt(parts[0], 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+    const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(startStr, 10);
+    const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
     const chunkSize = end - start + 1;
-    const fileStream = fs.createReadStream(filePath, { start, end });
+
+    const stream = fs.createReadStream(filePath, { start, end });
+    stream.on("error", handleStreamError);
 
     res.writeHead(206, {
       "Content-Range": `bytes ${start}-${end}/${stat.size}`,
       "Accept-Ranges": "bytes",
       "Content-Length": chunkSize,
-      "Content-Type": "audio/mpeg", // change if needed
+      "Content-Type": "audio/mpeg",
     });
 
-    fileStream.pipe(res);
-    fileStream.on("error", (err) => {
-      console.error("Stream error:", err);
-      res.end();
-    });
+    stream.pipe(res);
+
+    req.on("close", () => stream.destroy());
   } else {
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", handleStreamError);
+
     res.writeHead(200, {
       "Content-Length": stat.size,
       "Content-Type": "audio/mpeg",
     });
-    fs.createReadStream(filePath).pipe(res);
+
+    stream.pipe(res);
+
+    req.on("close", () => stream.destroy());
   }
 });
 
 // Serve the JSON folder structure
 app.get("/api/list", (req, res) => {
   const data = readFilesJson();
-  if (!data) {
+  if (!data)
     return res.status(500).json({ error: "Failed to load files.json" });
-  }
-  // Ensure CORS headers are sent if needed
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.json(data);
-  res.json(data);
+  res.json(data); // send JSON once
 });
 
 const PORT = process.env.PORT || 3001;
