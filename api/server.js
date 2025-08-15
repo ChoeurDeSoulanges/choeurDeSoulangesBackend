@@ -5,6 +5,12 @@ import path from "path";
 import archiver from "archiver";
 import { fileURLToPath } from "url";
 
+import cors from "cors";
+
+const corsOptions = {
+  origin: "*", // or specify your frontend domain for security
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -26,7 +32,7 @@ function readFilesJson() {
   }
 }
 
-app.get("/download", async (req, res) => {
+app.get("/download", cors(corsOptions), async (req, res) => {
   const { file, folder } = req.query;
 
   if (folder) {
@@ -65,7 +71,7 @@ app.get("/download", async (req, res) => {
 });
 
 // Audio streaming endpoint
-app.get("/audio", (req, res) => {
+app.get("/audio", cors(corsOptions), (req, res) => {
   const { file } = req.query;
   if (!file) return res.status(400).send("Missing file parameter");
 
