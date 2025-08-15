@@ -119,6 +119,8 @@ app.get("/api/list", (req, res) => {
   if (!data) {
     return res.status(500).json({ error: "Failed to load files.json" });
   }
+  // Ensure CORS headers are sent if needed
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.json(data);
 });
 
