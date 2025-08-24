@@ -1,10 +1,5 @@
 import { Storage } from "@google-cloud/storage";
 
-const ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "https://choeur-de-soulanges.vercel.app",
-];
-
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
 const storage = new Storage({
   projectId: key.project_id,
@@ -15,22 +10,19 @@ const BUCKET_NAME = process.env.GCLOUD_BUCKET;
 
 export default async function handler(req, res) {
   const origin = req.headers.origin;
-  const corsOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "";
 
   // OPTIONS preflight
   if (req.method === "OPTIONS") {
     res.writeHead(200, {
-      "Access-Control-Allow-Origin": corsOrigin,
+      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET,OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     });
     return res.end();
   }
 
-  if (req.method !== "GET") {
-    res.writeHead(405, { "Access-Control-Allow-Origin": corsOrigin });
-    return res.end("Method Not Allowed");
-  }
+  if (req.method !== "GET")
+    return res.status(405).json({ error: "Method Not Allowed" });
 
   const { file } = req.query;
   if (!file) {
