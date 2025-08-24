@@ -1,12 +1,9 @@
 import { Storage } from "@google-cloud/storage";
 
-// Initialize Google Cloud client using env variables
 const storage = new Storage({
-  projectId: process.env.GCLOUD_PROJECT_ID,
-  keyFilename: process.env.GCLOUD_KEYFILE,
+  keyFilename: process.env.GCLOUD_KEYFILE, // points to your JSON key
 });
 
-// Name of your bucket
 const BUCKET_NAME = process.env.GCLOUD_BUCKET;
 
 export default async function handler(req, res) {
@@ -15,20 +12,14 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "GET") {
-    return res.status(405).send("Method Not Allowed");
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "GET") return res.status(405).send("Method Not Allowed");
 
   try {
-    const [files] = await storage.bucket(BUCKET_NAME).getFiles({
-      autoPaginate: false,
-    });
+    const [files] = await storage
+      .bucket(BUCKET_NAME)
+      .getFiles({ autoPaginate: false });
 
-    // Build a simple JSON structure of files/folders
     const data = files.map((file) => ({
       name: file.name,
       path: file.name,
