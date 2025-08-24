@@ -25,10 +25,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
 
   const { file } = req.query;
-  if (!file) {
-    res.writeHead(400, { "Access-Control-Allow-Origin": corsOrigin });
-    return res.end("Missing file parameter");
-  }
+  if (!req.query.folder)
+    return res.status(400).json({ error: "Missing folder parameter" });
 
   try {
     const decodedFile = decodeURIComponent(file);
