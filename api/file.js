@@ -29,14 +29,19 @@ export default async function handler(req, res) {
 
   try {
     const bucket = storage.bucket(BUCKET_NAME);
-    const fileObj = bucket.file(file);
+    const fileObj = bucket.file(decodeURIComponent(file));
     const [exists] = await fileObj.exists();
     if (!exists) return res.status(404).send("File not found");
 
-    res.setHeader("Content-Type", "audio/mpeg"); // or "audio/wav" based on extension
+    const filename = fileObj.name.split("/").pop();
+
+    // Set headers for audio download
+    res.setHeader("Content-Type", "audio/mpeg"); // or detect .wav
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${fileObj.name.split("/").pop()}"`
+      `attachment; filename="file.mp3"; filename*=UTF-8''${encodeURIComponent(
+        filename
+      )}`
     );
 
     fileObj.createReadStream().pipe(res);
