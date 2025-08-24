@@ -46,7 +46,6 @@ export default async function handler(req, res) {
 
     // Send headers first (including CORS) before streaming
     res.writeHead(200, {
-      "Access-Control-Allow-Origin": corsOrigin,
       "Content-Type": contentType,
       "Content-Disposition": `attachment; filename="file.${ext}"; filename*=UTF-8''${encodeURIComponent(
         filename
@@ -64,7 +63,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("Download error:", err);
     if (!res.headersSent)
-      res.writeHead(500, { "Access-Control-Allow-Origin": corsOrigin }).end();
+      res.status(500).json({ error: err.message || "Internal server error" });
     else res.end();
   }
 }
