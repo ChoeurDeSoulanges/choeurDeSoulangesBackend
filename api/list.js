@@ -33,10 +33,12 @@ export default async function handler(req, res) {
 
     const fileArray = Array.isArray(files) ? files : [];
 
-    // Build nested tree structure
+    // Filter out files without a name
+    const validFiles = fileArray.filter((f) => f && f.name);
+
     const root = {};
 
-    fileArray.forEach((file) => {
+    validFiles.forEach((file) => {
       const parts = file.name.split("/").filter(Boolean); // remove empty parts
       let current = root;
 
