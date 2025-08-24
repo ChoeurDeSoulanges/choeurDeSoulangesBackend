@@ -1,8 +1,10 @@
 import { Storage } from "@google-cloud/storage";
 
+const key = JSON.parse(process.env.GCLOUD_KEYFILE);
+
 const storage = new Storage({
-  projectId: process.env.GCLOUD_PROJECT_ID,
-  keyFilename: process.env.GCLOUD_KEYFILE,
+  projectId: key.project_id, // extracted from the JSON
+  credentials: key,
 });
 
 const BUCKET_NAME = process.env.GCLOUD_BUCKET;
@@ -21,19 +23,19 @@ export default async function handler(req, res) {
 
   try {
     const bucket = storage.bucket(BUCKET_NAME);
-    const fileObj = bucket.file(file.toString());
+    const fileObj = bucket.file(file);
     const [exists] = await fileObj.exists();
     if (!exists) return res.status(404).send("File not found");
 
-    // Generate a signed URL valid for 10 minutes
+    // Generate a signed URL valid for 1 hour
     const [url] = await fileObj.getSignedUrl({
       action: "read",
-      expires: Date.now() + 1000 * 60 * 10,
+      expires: Date.now() + 60 * 60 * 1000,
     });
 
     res.status(200).json({ url });
   } catch (err) {
-    console.error("Error generating signed URL:", err);
-    if (!res.headersSent) res.status(500).end();
+    console.error("Audio play error:", err);
+    res.status(500).json({ error: "Failed to generate signed URL" });
   }
 }
