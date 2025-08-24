@@ -25,21 +25,25 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).send("Method Not Allowed");
 
-  const { folder } = req.query;
-  if (!folder) return res.status(400).send("Missing folder parameter");
+  if (!req.query.folder)
+    return res.status(400).send("Missing folder parameter");
+
+  // 🔑 decode and normalize folder path
+  let folder = decodeURIComponent(req.query.folder);
+  if (!folder.endsWith("/")) folder += "/";
 
   try {
     const bucket = storage.bucket(BUCKET_NAME);
 
-    // List all files under the folder
-    const [files] = await bucket.getFiles({
-      prefix: folder.endsWith("/") ? folder : folder + "/",
-    });
+    // List all files with prefix
+    const [files] = await bucket.getFiles({ prefix: folder });
 
     if (!files.length) return res.status(404).send("Folder not found or empty");
 
     // Set headers for zip download
-    const zipName = `${folder.split("/").pop() || "folder"}.zip`;
+    const zipName = `${
+      folder.split("/").filter(Boolean).pop() || "folder"
+    }.zip`;
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
 
@@ -51,16 +55,15 @@ export default async function handler(req, res) {
 
     archive.pipe(res);
 
-    // Add each file to the archive
     for (const fileObj of files) {
+      const relativePath = fileObj.name.slice(folder.length);
+      if (!relativePath) continue; // skip empty "folder" objects
+
       const stream = fileObj.createReadStream();
-      const relativePath = fileObj.name
-        .slice(folder.length)
-        .replace(/^\/+/, ""); // path inside zip
       archive.append(stream, { name: relativePath });
     }
 
-    archive.finalize();
+    await archive.finalize();
   } catch (err) {
     console.error("Folder download error:", err);
     if (!res.headersSent) res.status(500).end();
