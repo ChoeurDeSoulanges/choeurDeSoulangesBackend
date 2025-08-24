@@ -22,8 +22,11 @@ export default async function handler(req, res) {
     const [files] = await storage
       .bucket(BUCKET_NAME)
       .getFiles({ autoPaginate: false });
+    const validFiles = files.filter(
+      (f) => f && f.name && !f.name.endsWith("/")
+    );
 
-    const data = files.map((file) => ({
+    const data = validFiles.map((file) => ({
       name: file.name,
       path: file.name,
       size: file.metadata.size,
