@@ -35,7 +35,6 @@ export default async function handler(req, res) {
     const [exists] = await fileObj.exists();
 
     if (!exists) {
-      res.writeHead(404, { "Access-Control-Allow-Origin": corsOrigin });
       return res.end("File not found");
     }
 
