@@ -6,7 +6,6 @@ const ALLOWED_ORIGINS = [
 ];
 
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
-
 const storage = new Storage({
   projectId: key.project_id,
   credentials: key,
@@ -34,18 +33,15 @@ export default async function handler(req, res) {
     const [exists] = await fileObj.exists();
     if (!exists) return res.status(404).send("File not found");
 
-    // Generate signed URL valid for 1 hour for download
-    const [url] = await fileObj.getSignedUrl({
-      action: "read",
-      expires: Date.now() + 60 * 60 * 1000,
-      responseDisposition: `attachment; filename="${fileObj.name
-        .split("/")
-        .pop()}"`,
-    });
+    res.setHeader("Content-Type", "audio/mpeg"); // or "audio/wav" based on extension
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileObj.name.split("/").pop()}"`
+    );
 
-    res.status(200).json({ url });
+    fileObj.createReadStream().pipe(res);
   } catch (err) {
-    console.error("Download error:", err);
-    res.status(500).json({ error: "Failed to generate download URL" });
+    console.error("Audio download error:", err);
+    if (!res.headersSent) res.status(500).end();
   }
 }
