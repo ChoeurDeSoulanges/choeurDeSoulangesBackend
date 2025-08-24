@@ -1,5 +1,11 @@
 import { Storage } from "@google-cloud/storage";
 
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "https://choeur-de-soulanges.vercel.app",
+];
+
+// Load Google Cloud key from environment variable
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
 
 const storage = new Storage({
@@ -10,8 +16,10 @@ const storage = new Storage({
 const BUCKET_NAME = process.env.GCLOUD_BUCKET;
 
 export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -23,28 +31,46 @@ export default async function handler(req, res) {
       .bucket(BUCKET_NAME)
       .getFiles({ autoPaginate: false });
 
-    const tree = {};
+    const fileArray = Array.isArray(files) ? files : [];
 
-    files.forEach((file) => {
-      // Split path by "/" and remove trailing slashes
-      const parts = file.name.split("/").map((p) => p.replace(/\/$/, ""));
-      let current = tree;
+    // Build nested tree structure
+    const root = {};
 
-      parts.forEach((part, idx) => {
-        if (!part) return; // skip empty parts
+    fileArray.forEach((file) => {
+      const parts = file.name.split("/").filter(Boolean); // remove empty parts
+      let current = root;
 
-        if (idx === parts.length - 1) {
-          // last part: file
-          current[part] = null;
-        } else {
-          // folder
-          if (!current[part]) current[part] = {};
-          current = current[part];
+      parts.forEach((part, index) => {
+        if (!current[part]) {
+          current[part] = index === parts.length - 1 ? null : {};
         }
+        current = current[part] || {};
       });
     });
 
-    res.status(200).json(tree);
+    // Convert nested object to AntD TreeDataNode[]
+    const buildTree = (node, currentPath = "") => {
+      return Object.entries(node)
+        .filter(([key]) => key) // skip empty keys
+        .map(([key, value]) => {
+          const path = currentPath ? `${currentPath}/${key}` : key;
+
+          if (value === null) {
+            return { title: key, key: path, isLeaf: true };
+          } else {
+            const children = buildTree(value, path);
+            return {
+              title: key,
+              key: path,
+              children: children.length ? children : undefined,
+            };
+          }
+        });
+    };
+
+    const treeData = buildTree(root);
+
+    res.status(200).json(treeData);
   } catch (err) {
     console.error("Error listing files:", err);
     res.status(500).json({ error: "Failed to list files" });
