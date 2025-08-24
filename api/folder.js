@@ -28,19 +28,23 @@ export default async function handler(req, res) {
   if (!req.query.folder)
     return res.status(400).send("Missing folder parameter");
 
-  // 🔑 decode and normalize folder path
-  let folder = decodeURIComponent(req.query.folder);
+  // 🔑 decode, normalize, and ensure trailing slash
+  let folder = decodeURIComponent(req.query.folder).normalize("NFC");
   if (!folder.endsWith("/")) folder += "/";
 
   try {
     const bucket = storage.bucket(BUCKET_NAME);
 
-    // List all files with prefix
-    const [files] = await bucket.getFiles({ prefix: folder });
+    // Debug: list all files under the parent folder
+    const parentPrefix = folder.split("/").slice(0, -1).join("/") + "/";
+    const [allFiles] = await bucket.getFiles({ prefix: parentPrefix });
+    console.log("All files under parent prefix:");
+    allFiles.forEach((f) => console.log(JSON.stringify(f.name)));
 
+    // List files under the requested folder
+    const [files] = await bucket.getFiles({ prefix: folder });
     if (!files.length) return res.status(404).send("Folder not found or empty");
 
-    // Set headers for zip download
     const zipName = `${
       folder.split("/").filter(Boolean).pop() || "folder"
     }.zip`;
@@ -56,9 +60,12 @@ export default async function handler(req, res) {
     archive.pipe(res);
 
     for (const fileObj of files) {
-      const relativePath = fileObj.name.slice(folder.length);
+      // Normalize object name
+      const normalizedName = fileObj.name.normalize("NFC");
+      const relativePath = normalizedName.slice(folder.length);
       if (!relativePath) continue; // skip empty "folder" objects
 
+      console.log("Adding file to zip:", relativePath);
       const stream = fileObj.createReadStream();
       archive.append(stream, { name: relativePath });
     }
