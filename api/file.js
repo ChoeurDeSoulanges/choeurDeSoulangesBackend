@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).send("Method Not Allowed");
 
-  const { file } = decodeURIComponent(req.query).normalize("NFC");
+  const { file } = req.query;
   if (!file) return res.status(400).send("Missing file parameter");
 
   try {
