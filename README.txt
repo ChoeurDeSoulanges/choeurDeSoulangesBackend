@@ -1,8 +1,5 @@
 Run locally:
-node api/server.js
-
-Create files.json:
-node scripts/generateFilesJson.js  
+vercel dev --listen 3001
 
 TODO:
 -Fix 404/CORS for download on deployed
