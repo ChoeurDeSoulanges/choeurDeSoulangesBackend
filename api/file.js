@@ -1,4 +1,5 @@
 import { Storage } from "@google-cloud/storage";
+import path from "path";
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
@@ -29,22 +30,38 @@ export default async function handler(req, res) {
 
   try {
     const bucket = storage.bucket(BUCKET_NAME);
-    const fileObj = bucket.file(decodeURIComponent(file));
+    const decodedFile = decodeURIComponent(file);
+    const fileObj = bucket.file(decodedFile);
+
     const [exists] = await fileObj.exists();
     if (!exists) return res.status(404).send("File not found");
 
-    const filename = fileObj.name.split("/").pop();
+    const filename = path.basename(fileObj.name);
+    const ext = path.extname(filename).toLowerCase();
 
-    // Set headers for audio download
-    res.setHeader("Content-Type", "audio/mpeg"); // or detect .wav
+    // Determine content type
+    let contentType = "application/octet-stream";
+    if (ext === ".mp3") contentType = "audio/mpeg";
+    else if (ext === ".wav") contentType = "audio/wav";
+
+    // Set headers before streaming
+    res.setHeader("Content-Type", contentType);
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="file.mp3"; filename*=UTF-8''${encodeURIComponent(
-        filename
-      )}`
+      `attachment; filename="${filename.replace(
+        /"/g,
+        ""
+      )}"; filename*=UTF-8''${encodeURIComponent(filename)}`
     );
 
-    fileObj.createReadStream().pipe(res);
+    // Stream the file
+    fileObj
+      .createReadStream()
+      .pipe(res)
+      .on("error", (err) => {
+        console.error("Stream error:", err);
+        if (!res.headersSent) res.status(500).end();
+      });
   } catch (err) {
     console.error("Audio download error:", err);
     if (!res.headersSent) res.status(500).end();
