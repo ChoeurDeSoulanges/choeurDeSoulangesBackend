@@ -3,7 +3,7 @@ import { Storage } from "@google-cloud/storage";
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
 
 const storage = new Storage({
-  projectId: key.project_id, // extracted from the JSON
+  projectId: key.project_id,
   credentials: key,
 });
 
@@ -23,13 +23,28 @@ export default async function handler(req, res) {
       .bucket(BUCKET_NAME)
       .getFiles({ autoPaginate: false });
 
-    const data = files.map((file) => ({
-      name: file.name,
-      path: file.name,
-      size: file.metadata.size,
-    }));
+    const tree = {};
 
-    res.status(200).json(data);
+    files.forEach((file) => {
+      // Split path by "/" and remove trailing slashes
+      const parts = file.name.split("/").map((p) => p.replace(/\/$/, ""));
+      let current = tree;
+
+      parts.forEach((part, idx) => {
+        if (!part) return; // skip empty parts
+
+        if (idx === parts.length - 1) {
+          // last part: file
+          current[part] = null;
+        } else {
+          // folder
+          if (!current[part]) current[part] = {};
+          current = current[part];
+        }
+      });
+    });
+
+    res.status(200).json(tree);
   } catch (err) {
     console.error("Error listing files:", err);
     res.status(500).json({ error: "Failed to list files" });
