@@ -13,6 +13,7 @@ export default async function handler(req, res) {
   const ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "https://choeur-de-soulanges.vercel.app",
+    "https://www.franco-fredericton.com/choeurdesoulanges/careers",
   ];
   if (ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
