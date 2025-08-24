@@ -1,5 +1,4 @@
 import { Storage } from "@google-cloud/storage";
-import path from "path";
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
@@ -15,6 +14,7 @@ const storage = new Storage({
 const BUCKET_NAME = process.env.GCLOUD_BUCKET;
 
 export default async function handler(req, res) {
+  // Always get origin first
   const origin = req.headers.origin;
   if (ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -28,42 +28,43 @@ export default async function handler(req, res) {
   const { file } = req.query;
   if (!file) return res.status(400).send("Missing file parameter");
 
+  // Decode safely
+  const decodedFile = decodeURIComponent(file);
+
   try {
     const bucket = storage.bucket(BUCKET_NAME);
-    const decodedFile = decodeURIComponent(file);
     const fileObj = bucket.file(decodedFile);
 
     const [exists] = await fileObj.exists();
     if (!exists) return res.status(404).send("File not found");
 
-    const filename = path.basename(fileObj.name);
-    const ext = path.extname(filename).toLowerCase();
+    const filename = fileObj.name.split("/").pop() || "file";
 
-    // Determine content type
+    // Detect extension for Content-Type
+    const ext = filename.split(".").pop().toLowerCase();
     let contentType = "application/octet-stream";
-    if (ext === ".mp3") contentType = "audio/mpeg";
-    else if (ext === ".wav") contentType = "audio/wav";
+    if (ext === "mp3") contentType = "audio/mpeg";
+    else if (ext === "wav") contentType = "audio/wav";
 
-    // Set headers before streaming
     res.setHeader("Content-Type", contentType);
+
+    // Proper Content-Disposition with UTF-8 safe filename
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${filename.replace(
-        /"/g,
-        ""
-      )}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+      `attachment; filename="file.${ext}"; filename*=UTF-8''${encodeURIComponent(
+        filename
+      )}`
     );
 
     // Stream the file
-    fileObj
-      .createReadStream()
-      .pipe(res)
-      .on("error", (err) => {
-        console.error("Stream error:", err);
-        if (!res.headersSent) res.status(500).end();
-      });
+    const stream = fileObj.createReadStream();
+    stream.on("error", (err) => {
+      console.error("Stream error:", err);
+      if (!res.headersSent) res.status(500).end();
+    });
+    stream.pipe(res);
   } catch (err) {
-    console.error("Audio download error:", err);
+    console.error("Download error:", err);
     if (!res.headersSent) res.status(500).end();
   }
 }
