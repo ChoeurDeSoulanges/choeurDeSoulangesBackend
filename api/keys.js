@@ -7,7 +7,7 @@ const storage = new Storage({
   credentials: key,
 });
 
-const BUCKET_NAME = process.env.GCLOUD_DATA_BUCKET;
+const BUCKET_NAME = process.env.GCLOUD_CONFIG_BUCKET;
 
 export default async function handler(req, res) {
   // CORS headers
