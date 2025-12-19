@@ -1,54 +1,40 @@
 import { Storage } from "@google-cloud/storage";
 
-const BUCKET_NAME = process.env.GCLOUD_CONFIG_BUCKET;
-const key = JSON.parse(process.env.GCLOUD_KEYFILE || "{}");
+const key = JSON.parse(process.env.GCLOUD_KEYFILE);
+
 const storage = new Storage({
-  projectId: key.project_id,
+  projectId: key.project_id, // extracted from the JSON
   credentials: key,
 });
 
-const FILE_NAME = "selectedKeys.json";
+const BUCKET_NAME = process.env.GCLOUD_CONFIG_BUCKET;
 
 export default async function handler(req, res) {
+  // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,PUT,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-
-  const bucket = storage.bucket(BUCKET_NAME);
-  const file = bucket.file(FILE_NAME);
+  if (req.method !== "GET") return res.status(405).send("Method Not Allowed");
 
   try {
-    if (req.method === "GET") {
-      const [exists] = await file.exists();
-      if (!exists) return res.status(404).json({ error: "File not found" });
+    const [files] = await storage
+      .bucket(BUCKET_NAME)
+      .getFiles({ autoPaginate: false });
+    const validFiles = files.filter(
+      (f) => f && f.name && !f.name.endsWith("/")
+    );
 
-      const [contents] = await file.download();
-      const json = JSON.parse(contents.toString());
-      return res.status(200).json(json);
-    }
+    const data = validFiles.map((file) => ({
+      name: file.name,
+      path: file.name,
+      size: file.metadata.size,
+    }));
 
-    if (req.method === "PUT") {
-      const body = req.body;
-
-      if (!body || !Array.isArray(body.selectedKeys)) {
-        return res.status(400).json({ error: "selectedKeys must be an array" });
-      }
-
-      // Write new content to the file
-      await file.save(JSON.stringify(body, null, 2), {
-        contentType: "application/json",
-      });
-
-      return res.status(204).end();
-    }
-
-    return res.status(405).json({ error: "Method Not Allowed" });
+    res.status(200).json(data);
   } catch (err) {
-    console.error("Error handling selectedKeys.json:", err);
-    return res
-      .status(500)
-      .json({ error: err.message || "Internal server error" });
+    console.error("Error listing files:", err);
+    res.status(500).json({ error: "Failed to list files" });
   }
 }
