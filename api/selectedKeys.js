@@ -41,7 +41,7 @@ export default async function handler(req, res) {
         contentType: "application/json",
       });
 
-      return res.sendStatus(204);
+      return res.status(204).end(); // <-- use this instead of sendStatus
     }
 
     // Method not allowed
