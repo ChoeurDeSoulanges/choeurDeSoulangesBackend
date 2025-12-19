@@ -5,24 +5,8 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.0",
-    "@vercel/kv": "^3.0.0",
     "archiver": "^7.0.1",
     "cors": "^2.8.5",
-    "express": "^4.22.1"
-  },
-  "name": "choeurdesoulangesbackend",
-  "version": "1.0.0",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ChoeurDeSoulanges/choeurDeSoulangesBackend.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/ChoeurDeSoulanges/choeurDeSoulangesBackend/issues"
-  },
-  "homepage": "https://github.com/ChoeurDeSoulanges/choeurDeSoulangesBackend#readme",
-  "description": ""
+    "express": "^4.21.2"
+  }
 }
