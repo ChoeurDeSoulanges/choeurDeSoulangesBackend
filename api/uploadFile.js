@@ -9,6 +9,7 @@ export const config = {
 
 const BUCKET_NAME = process.env.GCLOUD_DATA_BUCKET;
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
+
 const storage = new Storage({
   projectId: key.project_id,
   credentials: key,
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
 
   const form = formidable({
-    multiples: false, // single file only
+    multiples: false, // only one file
     keepExtensions: true,
   });
 
@@ -42,7 +43,7 @@ export default async function handler(req, res) {
 
     const bucket = storage.bucket(BUCKET_NAME);
 
-    const file = files.file;
+    const file = files.file; // must match the field name in Postman
     if (!file) return res.status(400).json({ error: "No file provided" });
 
     try {
@@ -50,9 +51,7 @@ export default async function handler(req, res) {
       await bucket.upload(file.filepath, {
         destination,
         resumable: false,
-        metadata: {
-          contentType: file.mimetype,
-        },
+        metadata: { contentType: file.mimetype },
       });
 
       return res.status(200).json({
