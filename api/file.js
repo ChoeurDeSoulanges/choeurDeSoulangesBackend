@@ -1,6 +1,6 @@
 import { Storage } from "@google-cloud/storage";
 
-const BUCKET_NAME = process.env.GCLOUD_BUCKET;
+const BUCKET_NAME = process.env.GCLOUD_DATA_BUCKET;
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
 const storage = new Storage({
   projectId: key.project_id,
