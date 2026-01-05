@@ -3,7 +3,7 @@ import formidable from "formidable";
 
 export const config = {
   api: {
-    bodyParser: false, // Required for formidable
+    bodyParser: false,
   },
 };
 
@@ -16,29 +16,24 @@ const storage = new Storage({
 });
 
 export default async function handler(req, res) {
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST")
     return res.status(405).json({ error: "Method Not Allowed" });
 
-  const form = formidable({
-    multiples: true, // <-- allow multiple files
-    keepExtensions: true,
-  });
+  const form = formidable({ multiples: true, keepExtensions: true });
 
   form.parse(req, async (err, fields, files) => {
-    console.log("Form parse error:", err);
-    console.log("Fields received:", fields);
-    console.log("Files received:", files);
-
     if (err) {
+      console.error("Form parse error:", err);
       return res.status(500).json({ error: "Failed to parse form data" });
     }
 
-    // ---- Normalize folder field (can be array) ----
+    // Folder
     const folderRaw = Array.isArray(fields.folder)
       ? fields.folder[0]
       : fields.folder;
@@ -47,16 +42,17 @@ export default async function handler(req, res) {
       : null;
     if (!folder) return res.status(400).json({ error: "Missing folder field" });
 
-    // ---- Normalize files into an array ----
+    // Normalize files
     let uploadedFiles = [];
-    for (const keyName of Object.keys(files || {})) {
+    for (const keyName in files) {
       const f = files[keyName];
       if (Array.isArray(f)) uploadedFiles.push(...f);
       else if (f) uploadedFiles.push(f);
     }
 
-    // ---- Filter valid files ----
-    uploadedFiles = uploadedFiles.filter((f) => f && f.filepath);
+    uploadedFiles = uploadedFiles.filter(
+      (f) => f && typeof f.filepath === "string"
+    );
 
     if (!uploadedFiles.length) {
       return res
@@ -67,8 +63,7 @@ export default async function handler(req, res) {
     const bucket = storage.bucket(BUCKET_NAME);
 
     try {
-      // ---- Upload all files ----
-      const uploadResults = await Promise.all(
+      await Promise.all(
         uploadedFiles.map((file) => {
           const destination = `${folder}/${file.originalFilename}`;
           console.log(
