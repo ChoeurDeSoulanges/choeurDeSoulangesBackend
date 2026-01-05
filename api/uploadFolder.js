@@ -23,8 +23,10 @@ export default async function handler(req, res) {
   const form = formidable({ multiples: true, keepExtensions: true });
 
   form.parse(req, async (err, fields, files) => {
-    if (err)
+    if (err) {
+      console.error("Form parse error:", err);
       return res.status(500).json({ error: "Failed to parse form data" });
+    }
 
     // folder normalization
     const folderRaw = Array.isArray(fields.folder)
@@ -35,30 +37,22 @@ export default async function handler(req, res) {
       : null;
     if (!folder) return res.status(400).json({ error: "Missing folder field" });
 
-    // normalize files
-    const filesRaw = files?.files;
-    const uploadedFiles = Array.isArray(filesRaw)
-      ? filesRaw
-      : filesRaw
-      ? [filesRaw]
-      : [];
+    // Collect all files from any key
+    const allFiles = [];
+    for (const key of Object.keys(files || {})) {
+      const f = files[key];
+      if (Array.isArray(f)) allFiles.push(...f);
+      else if (f) allFiles.push(f);
+    }
 
-    // map PersistentFile instances to plain objects
-    const validFiles = uploadedFiles
-      .map((f) => {
-        if (!f || !f.filepath) return null;
-        return {
-          filepath: f.filepath,
-          originalFilename: f.originalFilename,
-          mimetype: f.mimetype,
-        };
-      })
-      .filter(Boolean);
+    // Only keep files with a valid filepath
+    const validFiles = allFiles.filter((f) => f && f.filepath);
 
-    if (!validFiles.length)
+    if (!validFiles.length) {
       return res
         .status(400)
         .json({ error: "No valid file provided or wrong field name" });
+    }
 
     const bucket = storage.bucket(BUCKET_NAME);
 
