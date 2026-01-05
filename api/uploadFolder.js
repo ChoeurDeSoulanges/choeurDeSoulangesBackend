@@ -20,13 +20,9 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST") {
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")
     return res.status(405).json({ error: "Method Not Allowed" });
-  }
 
   const form = formidable({
     multiples: true,
@@ -39,29 +35,27 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to parse form data" });
     }
 
-    // --- Normalize folder field (array or string) ---
+    // --- Normalize folder field ---
     const folderRaw = Array.isArray(fields.folder)
       ? fields.folder[0]
       : fields.folder;
-
     const folder = folderRaw
       ? String(folderRaw).replace(/\/$/, "").normalize("NFC")
       : null;
+    if (!folder) return res.status(400).json({ error: "Missing folder field" });
 
-    if (!folder) {
-      return res.status(400).json({ error: "Missing folder field" });
-    }
-
-    // --- Normalize files field (array or single object) ---
+    // --- Normalize files array ---
     const filesRaw = files?.files;
-    const uploadedFiles = Array.isArray(filesRaw)
-      ? filesRaw
-      : filesRaw
-      ? [filesRaw]
-      : [];
+    let uploadedFiles = [];
+    if (!filesRaw) uploadedFiles = [];
+    else if (Array.isArray(filesRaw)) uploadedFiles = filesRaw;
+    else uploadedFiles = [filesRaw];
 
-    // --- Filter out any files missing a valid filepath ---
-    const validFiles = uploadedFiles.filter((f) => f?.filepath);
+    // --- Filter only files that actually have a string filepath ---
+    const validFiles = uploadedFiles.filter(
+      (f) => f && typeof f.filepath === "string" && f.filepath.length > 0
+    );
+
     if (!validFiles.length) {
       return res
         .status(400)
@@ -71,7 +65,6 @@ export default async function handler(req, res) {
     const bucket = storage.bucket(BUCKET_NAME);
 
     try {
-      // --- Upload all files in parallel ---
       const uploadPromises = validFiles.map((file) => {
         const destination = `${folder}/${file.originalFilename}`;
         return bucket.upload(file.filepath, {
