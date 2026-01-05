@@ -39,35 +39,46 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to parse form data" });
     }
 
-    const folder = fields.folder
-      ? String(fields.folder).replace(/\/$/, "").normalize("NFC")
+    // ---- Normalize folder field (can be array) ----
+    const folderRaw = Array.isArray(fields.folder)
+      ? fields.folder[0]
+      : fields.folder;
+
+    const folder = folderRaw
+      ? String(folderRaw).replace(/\/$/, "").normalize("NFC")
       : null;
 
     if (!folder) {
       return res.status(400).json({ error: "Missing folder field" });
     }
 
-    const bucket = storage.bucket(BUCKET_NAME);
-
-    const uploadedFiles = Array.isArray(files.files)
-      ? files.files
-      : files.files
-      ? [files.files]
+    // ---- Normalize files field (Formidable returns arrays) ----
+    const filesRaw = files?.files;
+    const uploadedFiles = Array.isArray(filesRaw)
+      ? filesRaw
+      : filesRaw
+      ? [filesRaw]
       : [];
 
     if (!uploadedFiles.length) {
       return res.status(400).json({ error: "No files provided" });
     }
 
+    const bucket = storage.bucket(BUCKET_NAME);
+
     try {
       const uploadPromises = uploadedFiles.map((file) => {
+        if (!file?.filepath) {
+          throw new Error("Invalid file: missing filepath");
+        }
+
         const destination = `${folder}/${file.originalFilename}`;
 
         return bucket.upload(file.filepath, {
           destination,
           resumable: false,
           metadata: {
-            contentType: file.mimetype,
+            contentType: file.mimetype || "application/octet-stream",
           },
         });
       });
@@ -76,6 +87,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         message: "Folder uploaded successfully",
+        folder,
         files: uploadedFiles.map((f) => f.originalFilename),
       });
     } catch (uploadErr) {
