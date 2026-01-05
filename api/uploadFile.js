@@ -1,11 +1,7 @@
 import { Storage } from "@google-cloud/storage";
 import formidable from "formidable";
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+export const config = { api: { bodyParser: false } };
 
 const BUCKET_NAME = process.env.GCLOUD_DATA_BUCKET;
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
@@ -16,14 +12,24 @@ const storage = new Storage({
 });
 
 export default async function handler(req, res) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // ---- CORS headers ----
+  const allowedOrigin = req.headers.origin || "*";
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
+  // ---- Preflight request ----
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
+  }
 
   const form = formidable({ multiples: true, keepExtensions: true });
 
@@ -33,7 +39,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to parse form data" });
     }
 
-    // Folder
+    // ---- Normalize folder ----
     const folderRaw = Array.isArray(fields.folder)
       ? fields.folder[0]
       : fields.folder;
@@ -42,17 +48,14 @@ export default async function handler(req, res) {
       : null;
     if (!folder) return res.status(400).json({ error: "Missing folder field" });
 
-    // Normalize files
+    // ---- Normalize files ----
     let uploadedFiles = [];
     for (const keyName in files) {
       const f = files[keyName];
       if (Array.isArray(f)) uploadedFiles.push(...f);
       else if (f) uploadedFiles.push(f);
     }
-
-    uploadedFiles = uploadedFiles.filter(
-      (f) => f && typeof f.filepath === "string"
-    );
+    uploadedFiles = uploadedFiles.filter((f) => f && f.filepath);
 
     if (!uploadedFiles.length) {
       return res
