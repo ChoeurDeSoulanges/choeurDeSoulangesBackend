@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to parse form data" });
     }
 
-    // ---- Normalize folder field (can be array) ----
+    // --- Normalize folder field (array or string) ---
     const folderRaw = Array.isArray(fields.folder)
       ? fields.folder[0]
       : fields.folder;
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing folder field" });
     }
 
-    // ---- Normalize files field (Formidable returns arrays) ----
+    // --- Normalize files field (array or single object) ---
     const filesRaw = files?.files;
     const uploadedFiles = Array.isArray(filesRaw)
       ? filesRaw
@@ -60,20 +60,20 @@ export default async function handler(req, res) {
       ? [filesRaw]
       : [];
 
-    if (!uploadedFiles.length) {
-      return res.status(400).json({ error: "No files provided" });
+    // --- Filter out any files missing a valid filepath ---
+    const validFiles = uploadedFiles.filter((f) => f?.filepath);
+    if (!validFiles.length) {
+      return res
+        .status(400)
+        .json({ error: "No valid file provided or wrong field name" });
     }
 
     const bucket = storage.bucket(BUCKET_NAME);
 
     try {
-      const uploadPromises = uploadedFiles.map((file) => {
-        if (!file?.filepath) {
-          throw new Error("Invalid file: missing filepath");
-        }
-
+      // --- Upload all files in parallel ---
+      const uploadPromises = validFiles.map((file) => {
         const destination = `${folder}/${file.originalFilename}`;
-
         return bucket.upload(file.filepath, {
           destination,
           resumable: false,
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         message: "Folder uploaded successfully",
         folder,
-        files: uploadedFiles.map((f) => f.originalFilename),
+        files: validFiles.map((f) => f.originalFilename),
       });
     } catch (uploadErr) {
       console.error("Upload error:", uploadErr);
