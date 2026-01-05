@@ -1,11 +1,7 @@
 import { Storage } from "@google-cloud/storage";
 import formidable from "formidable";
 
-export const config = {
-  api: {
-    bodyParser: false, // REQUIRED for formidable
-  },
-};
+export const config = { api: { bodyParser: false } };
 
 const BUCKET_NAME = process.env.GCLOUD_DATA_BUCKET;
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
@@ -24,10 +20,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST")
     return res.status(405).json({ error: "Method Not Allowed" });
 
-  const form = formidable({
-    multiples: true,
-    keepExtensions: true,
-  });
+  const form = formidable({ multiples: true, keepExtensions: true });
 
   form.parse(req, async (err, fields, files) => {
     if (err) {
@@ -35,7 +28,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to parse form data" });
     }
 
-    // --- Normalize folder field ---
+    // Normalize folder field
     const folderRaw = Array.isArray(fields.folder)
       ? fields.folder[0]
       : fields.folder;
@@ -44,17 +37,16 @@ export default async function handler(req, res) {
       : null;
     if (!folder) return res.status(400).json({ error: "Missing folder field" });
 
-    // --- Normalize files array ---
+    // Normalize files
     const filesRaw = files?.files;
-    let uploadedFiles = [];
-    if (!filesRaw) uploadedFiles = [];
-    else if (Array.isArray(filesRaw)) uploadedFiles = filesRaw;
-    else uploadedFiles = [filesRaw];
+    const uploadedFiles = Array.isArray(filesRaw)
+      ? filesRaw
+      : filesRaw
+      ? [filesRaw]
+      : [];
 
-    // --- Filter only files that actually have a string filepath ---
-    const validFiles = uploadedFiles.filter(
-      (f) => f && typeof f.filepath === "string" && f.filepath.length > 0
-    );
+    // ✅ Only check truthiness, not typeof
+    const validFiles = uploadedFiles.filter((f) => f?.filepath);
 
     if (!validFiles.length) {
       return res
