@@ -23,12 +23,10 @@ export default async function handler(req, res) {
   const form = formidable({ multiples: true, keepExtensions: true });
 
   form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error("Form parse error:", err);
+    if (err)
       return res.status(500).json({ error: "Failed to parse form data" });
-    }
 
-    // Normalize folder field
+    // folder normalization
     const folderRaw = Array.isArray(fields.folder)
       ? fields.folder[0]
       : fields.folder;
@@ -37,7 +35,7 @@ export default async function handler(req, res) {
       : null;
     if (!folder) return res.status(400).json({ error: "Missing folder field" });
 
-    // Normalize files
+    // normalize files
     const filesRaw = files?.files;
     const uploadedFiles = Array.isArray(filesRaw)
       ? filesRaw
@@ -45,30 +43,38 @@ export default async function handler(req, res) {
       ? [filesRaw]
       : [];
 
-    // ✅ Only check truthiness, not typeof
-    const validFiles = uploadedFiles.filter((f) => f?.filepath);
+    // map PersistentFile instances to plain objects
+    const validFiles = uploadedFiles
+      .map((f) => {
+        if (!f || !f.filepath) return null;
+        return {
+          filepath: f.filepath,
+          originalFilename: f.originalFilename,
+          mimetype: f.mimetype,
+        };
+      })
+      .filter(Boolean);
 
-    if (!validFiles.length) {
+    if (!validFiles.length)
       return res
         .status(400)
         .json({ error: "No valid file provided or wrong field name" });
-    }
 
     const bucket = storage.bucket(BUCKET_NAME);
 
     try {
-      const uploadPromises = validFiles.map((file) => {
-        const destination = `${folder}/${file.originalFilename}`;
-        return bucket.upload(file.filepath, {
-          destination,
-          resumable: false,
-          metadata: {
-            contentType: file.mimetype || "application/octet-stream",
-          },
-        });
-      });
-
-      await Promise.all(uploadPromises);
+      await Promise.all(
+        validFiles.map((file) => {
+          const destination = `${folder}/${file.originalFilename}`;
+          return bucket.upload(file.filepath, {
+            destination,
+            resumable: false,
+            metadata: {
+              contentType: file.mimetype || "application/octet-stream",
+            },
+          });
+        })
+      );
 
       return res.status(200).json({
         message: "Folder uploaded successfully",
