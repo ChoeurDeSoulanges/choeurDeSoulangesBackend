@@ -9,6 +9,7 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "formidable": "^3.5.4"
+    "formidable": "^3.5.4",
+    "jsonwebtoken": "^9.0.3"
   }
 }
