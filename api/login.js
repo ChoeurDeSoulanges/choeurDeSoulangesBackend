@@ -40,9 +40,7 @@ export default async function handler(req, res) {
 
 		const [contents] = await file.download();
 		const authData = JSON.parse(contents.toString("utf8"));
-		console.log(username);
-		console.log(authData.adminUsername);
-		console.log(authData.guestUsername);
+		console.log(username, authData.adminUsername, authData.guestUsername);
 
 		// Check admin credentials
 		if (username === authData.adminUsername) {
