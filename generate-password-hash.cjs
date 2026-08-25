@@ -3,7 +3,7 @@
 // 3) Copy the hash from the console
 const bcrypt = require("bcryptjs");
 
-const password = "blablafnn";
+const password = "blabla";
 bcrypt.hash(password, 12).then((hash) => {
 	console.log(hash);
 });
