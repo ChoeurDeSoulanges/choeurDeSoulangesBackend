@@ -1,64 +1,61 @@
 import { Storage } from "@google-cloud/storage";
 import archiver from "archiver";
+import { requireAuth } from "./_auth.js";
 
 const BUCKET_NAME = process.env.GCLOUD_DATA_BUCKET;
 const key = JSON.parse(process.env.GCLOUD_KEYFILE);
 const storage = new Storage({
-  projectId: key.project_id,
-  credentials: key,
+	projectId: key.project_id,
+	credentials: key,
 });
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+	res.setHeader("Access-Control-Allow-Origin", "*");
+	res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+	res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET")
-    return res.status(405).json({ error: "Method Not Allowed" });
+	if (req.method === "OPTIONS") return res.status(200).end();
+	if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
 
-  try {
-    if (!req.query.folder)
-      return res.status(400).json({ error: "Missing folder parameter" });
+	const user = requireAuth(req, res);
+	if (!user) return;
 
-    let folder = decodeURIComponent(req.query.folder).normalize("NFC");
-    if (!folder.endsWith("/")) folder += "/";
+	try {
+		if (!req.query.folder) return res.status(400).json({ error: "Missing folder parameter" });
 
-    const bucket = storage.bucket(BUCKET_NAME);
-    const [files] = await bucket.getFiles({ prefix: folder });
+		let folder = decodeURIComponent(req.query.folder).normalize("NFC");
+		if (!folder.endsWith("/")) folder += "/";
 
-    if (!files.length)
-      return res.status(404).json({ error: "Folder not found or empty" });
+		const bucket = storage.bucket(BUCKET_NAME);
+		const [files] = await bucket.getFiles({ prefix: folder });
 
-    // Encode filename safely for Content-Disposition
-    const rawName = folder.split("/").filter(Boolean).pop() || "folder";
-    const zipName = encodeURIComponent(rawName) + ".zip";
+		if (!files.length) return res.status(404).json({ error: "Folder not found or empty" });
 
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename*=UTF-8''${zipName}`
-    );
+		// Encode filename safely for Content-Disposition
+		const rawName = folder.split("/").filter(Boolean).pop() || "folder";
+		const zipName = encodeURIComponent(rawName) + ".zip";
 
-    const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.on("error", (err) => {
-      console.error("Archive error:", err);
-      if (!res.headersSent) res.status(500).end();
-    });
+		res.setHeader("Content-Type", "application/zip");
+		res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${zipName}`);
 
-    archive.pipe(res);
+		const archive = archiver("zip", { zlib: { level: 9 } });
+		archive.on("error", (err) => {
+			console.error("Archive error:", err);
+			if (!res.headersSent) res.status(500).end();
+		});
 
-    for (const fileObj of files) {
-      const relativePath = fileObj.name.slice(folder.length);
-      if (!relativePath) continue;
-      const stream = fileObj.createReadStream();
-      archive.append(stream, { name: relativePath });
-    }
+		archive.pipe(res);
 
-    await archive.finalize();
-  } catch (err) {
-    console.error("Folder download error:", err);
-    if (!res.headersSent)
-      res.status(500).json({ error: err.message || "Internal server error" });
-  }
+		for (const fileObj of files) {
+			const relativePath = fileObj.name.slice(folder.length);
+			if (!relativePath) continue;
+			const stream = fileObj.createReadStream();
+			archive.append(stream, { name: relativePath });
+		}
+
+		await archive.finalize();
+	} catch (err) {
+		console.error("Folder download error:", err);
+		if (!res.headersSent) res.status(500).json({ error: err.message || "Internal server error" });
+	}
 }
